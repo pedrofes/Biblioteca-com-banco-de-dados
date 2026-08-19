@@ -1,10 +1,11 @@
 import sqlite3
 
+
 def cadastrar_um_livro():
     livro = input('Digite o nome do livro que deseja cadastrar: ').strip()
     autor = input('Digite o nome do autor do livro que está cadastrando: ').strip()
     try:
-        ano = int(input('Digite o ano de publicação do livro que está sendo cadastrado: ')).strip()
+        ano = int(input('Digite o ano de publicação do livro que está sendo cadastrado: ').strip())
     except ValueError:
         print('Digite apenas números.')
         return
@@ -14,8 +15,8 @@ def cadastrar_um_livro():
     cursor = conexao.cursor()
 
     cursor.execute('''
-    INSERT INTO livros 
-    VALUES;
+    INSERT INTO livros (titulo, autor, ano, disponivel) 
+    VALUES (?,?,?,?);
     ''',
     (livro,autor,ano,1)
     )
@@ -23,7 +24,7 @@ def cadastrar_um_livro():
     conexao.commit() 
 
     cursor.execute('''
-    SELECT * FROM livros WHERE nome=?;
+    SELECT * FROM livros WHERE titulo=?;
     ''',
     (livro,)
     )
@@ -49,8 +50,13 @@ def listar_livros():
     livros = cursor.fetchall()
 
     for livro in livros:
-        print(f'O livro: {livro[1]} está disponível')
-        print(f'Seu autor é {livro[2]} e seu ano de publicação é {livro[3]}\n')
+        if livro[4] == 1:
+            status = 'disponível'
+        else:
+            status = 'emprestado'
+
+        print(f'O livro: {livro[1]} está {status}.')
+        print(f'Seu autor é {livro[2]} e seu ano de publicação é {livro[3]}.\n')
 
     conexao.close()
 
@@ -62,16 +68,16 @@ def buscar_livro():
     cursor = conexao.cursor()
 
     cursor.execute('''
-    SELECT * FROM livros WHERE nome=?;
+    SELECT * FROM livros WHERE titulo=?;
     ''',(livro_busca,)
     )
 
-    livro = cursor.fetechone()
+    livro = cursor.fetchone()
 
     if livro:
         print(f'O livro {livro[1]} está cadastrado no sistema.')
 
-    if not livro:
+    else:
         print('O livro procurado não está cadastrado no sistema.')
 
     conexao.close()
@@ -80,42 +86,44 @@ def cadastrar_usuario():
     nome_usuario = input('Digite o nome do usuário que deseja cadastrar no sistema da biblioteca: ').strip()
     email = input('Digite o email que deseja cadastrar pelo usuário: ').strip()
 
-    conexao = sqlite3.connect('biblioteca')
+    conexao = sqlite3.connect('biblioteca.db')
     cursor = conexao.cursor()
 
     cursor.execute('''
-    SELECT * FROM livros WHERE email=?;
+    SELECT * FROM usuarios WHERE email=?;
     ''', (email,)
     )
 
     usuarios = cursor.fetchone()
 
-    if usuarios [2] == email:
+    if usuarios:
         print('Email já cadastrado no sistema.')
+        conexao.close()
         return
 
     cursor.execute('''
-    INSERT INTO usuarios VALUES;
+    INSERT INTO usuarios (nome, email)
+    VALUES (?,?);
     ''', (nome_usuario, email)
     )
 
     conexao.commit()
 
     cursor.execute('''
-        SELECT * FROM livros WHERE email=?;
+        SELECT * FROM usuarios WHERE email=?;
         ''', (email,)
         )
 
-    listar_livro = cursor.fetchone()
+    usuario_cadastrado = cursor.fetchone()
 
-    print(f'Livro: {listar_livros[1]} cadastrado.')
+    print(f'Usuário: {usuario_cadastrado[1]} cadastrado.')
 
     conexao.close()
 
 
 def listar_usuarios_cadastrados():
 
-    conexao = sqlite3.connect()
+    conexao = sqlite3.connect('biblioteca.db')
 
     cursor = conexao.cursor()
 
@@ -125,6 +133,10 @@ def listar_usuarios_cadastrados():
     )
 
     usuarios = cursor.fetchall()
+
+    if not usuarios:
+        print('Nenhum usuário cadastrado no sistema.')
+        return
 
     for usuario in usuarios:
         print(f'Usuário: {usuario[1]} cadastrado com o email: {usuario[2]}.')
@@ -139,21 +151,25 @@ def realizar_emprestimo():
     cursor = conexao.cursor()
 
     cursor.execute('''
-    SELECT * FROM livros WHERE nome=?
+    SELECT * FROM livros WHERE titulo=?
     ''',(livro_emprestar,)
     )
 
-    livro_emprestado = cursor.fetchall()
+    livro_emprestado = cursor.fetchone()
 
     if livro_emprestado:
-        cursor.execute('''
-        UPDATE livros SET disponivel=? WHERE nome=?;
-        ''', (0, livro_emprestar)
-        )
+        if livro_emprestado[4] == 1:
+            cursor.execute('''
+            UPDATE livros SET disponivel=? WHERE titulo=?;
+            ''', (0, livro_emprestar)
+            )
 
-        print(f'Livro: {livro_emprestado[1]} emprestado.')
-        conexao.commit()
-        conexao.close()
+            print(f'Parabéns, seu empréstimo do livro: {livro_emprestado[1]} foi realizado.')
+            conexao.commit()
+            conexao.close()
+        else:
+            print(f'O livro: {livro_emprestado[1]} já está emprestado.')
+            conexao.close()
 
     else:
         print('O livro procurado não está cadastrado nesta biblioteca.')
@@ -166,15 +182,19 @@ def listar_emprestimos():
 
     cursor.execute('''
     SELECT * FROM livros WHERE disponivel =?; 
-    '''(0,)
+    ''', (0,)
     )
 
     emprestados = cursor.fetchall()
 
-    for livro in emprestados:
-        print(f'O livro {livro[0]} está emprestado no momento.')
+    if emprestados:
+        for livro in emprestados:
+            print(f'O livro {livro[1]} está emprestado no momento.')
 
-    conexao.close()
+        conexao.close()
+    else: 
+        print('Nenhum livro emprestado.')
+        conexao.close()
 
 def realizar_devolucao():
     livro_devolucao = input('Digite o nome do livro que deseja remover: ').strip()
@@ -184,7 +204,7 @@ def realizar_devolucao():
     cursor = conexao.cursor()
 
     cursor.execute('''
-    SELECT FROM livros WHERE nome=?;
+    SELECT * FROM livros WHERE titulo=?;
     ''', (livro_devolucao,)
     )
 
@@ -192,19 +212,24 @@ def realizar_devolucao():
 
     if livro:
 
-        cursor.execute('''
-        UPDATE livros SET disponivel = ? WHERE nome=?;
-        ''', (1, livro_devolucao)
-        )
+        if livro[4] == 0:
+            cursor.execute('''
+            UPDATE livros SET disponivel = ? WHERE titulo=?;
+            ''', (1, livro_devolucao)
+            )
 
-        conexao.commit()
+            conexao.commit()
 
-        print(f'Livro: {livro_devolucao} devolvido com sucesso.')
+            print(f'Livro: {livro_devolucao} devolvido com sucesso.')
 
-        conexao.close()
+            conexao.close()
+
+        else:
+            print('O livro em questão não está emprestado.')
+            conexao.close()
 
     else:
-        print+('O livro em questão não está cadastrado no sistema.')
+        print('O livro em questão não está cadastrado no sistema.')
         conexao.close()
 
 
